@@ -29,7 +29,7 @@
 
 /**************************     REVISION HISTORY    **************************
  * 07/09/2014 - Minh Duc Cao: Created                                        
- *  
+ *
  ****************************************************************************/
 
 package japsa.bio.np;
@@ -46,228 +46,229 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 
 /**
  * @author Minh Duc Cao, Son Hoang Nguyen
- *
  */
 public class RealtimeSpeciesTyping {
-	private static final Logger LOG = LoggerFactory.getLogger(RealtimeSpeciesTyping.class);
-	public static boolean JSON = false;
+  private static final Logger LOG = LoggerFactory.getLogger(RealtimeSpeciesTyping.class);
+  public static boolean JSON = false;
 
-	private RealtimeSpeciesTyper typer;
-	private OutputStream outputStream;
-	private BufferedReader indexBufferedReader;
+  private RealtimeSpeciesTyper typer;
+  private OutputStream outputStream;
+  private BufferedReader indexBufferedReader;
 
-	/**
-	 * Minimum quality of alignment
-	 */
-	private double minQual = 1;
-	private boolean twoDOnly = false;
+  /**
+   * Minimum quality of alignment
+   */
+  private double minQual = 1;
+  private boolean twoDOnly = false;
 
 
-	Integer currentReadCount = 0;
-	Integer currentReadAligned = 0;
-	Long currentBaseCount = 0L;
+  Integer currentReadCount = 0;
+  Integer currentReadAligned = 0;
+  Long currentBaseCount = 0L;
 
-	//long startTime;
+  //long startTime;
 
-	HashMap<String, String> seq2Species = new HashMap<String, String>();
-	HashMap<String, SpeciesCount> species2Count = new HashMap<String, SpeciesCount>();
-	ArrayList<String> speciesList = new ArrayList<String>(); 
-	
-	//to output binned sequences
-	public static boolean OUTSEQ=false;
-	HashMap<String, ArrayList<String>> species2Seqs = new HashMap<String, ArrayList<String>>();
+  HashMap<String, String> seq2Species = new HashMap<String, String>();
+  HashMap<String, SpeciesCount> species2Count = new HashMap<String, SpeciesCount>();
+  ArrayList<String> speciesList = new ArrayList<String>();
 
-	public RealtimeSpeciesTyping(String indexFile, String outputFile) throws IOException{
-		LOG.debug("string string");
-		this.indexBufferedReader = SequenceReader.openFile(indexFile);
-		this.outputStream = SequenceOutputStream.makeOutputStream(outputFile);
-		typer = new RealtimeSpeciesTyper(this, outputStream);
-		preTyping();
-	}
+  //to output binned sequences
+  public static boolean OUTSEQ = false;
+  HashMap<String, ArrayList<String>> species2Seqs = new HashMap<String, ArrayList<String>>();
 
-	public RealtimeSpeciesTyping(String indexFile, OutputStream outputStream) throws IOException {
-		LOG.debug("string outputstream");
-		this.indexBufferedReader = SequenceReader.openFile(indexFile);
-		this.outputStream = outputStream;
-		typer = new RealtimeSpeciesTyper(this, outputStream);
-		preTyping();
-	}
+  public RealtimeSpeciesTyping(String indexFile, String outputFile) throws IOException {
+    LOG.debug("string string");
+    this.indexBufferedReader = SequenceReader.openFile(indexFile);
+    this.outputStream = SequenceOutputStream.makeOutputStream(outputFile);
+    typer = new RealtimeSpeciesTyper(this, outputStream);
+    preTyping();
+  }
 
-	public RealtimeSpeciesTyping(BufferedReader indexBufferedReader, String outputFile) throws IOException {
-		LOG.debug("bufferedreader string");
-		this.indexBufferedReader = indexBufferedReader;
-		this.outputStream = SequenceOutputStream.makeOutputStream(outputFile);
-		typer = new RealtimeSpeciesTyper(this, outputStream);
-		preTyping();
-	}
+  public RealtimeSpeciesTyping(String indexFile, OutputStream outputStream) throws IOException {
+    LOG.debug("string outputstream");
+    this.indexBufferedReader = SequenceReader.openFile(indexFile);
+    this.outputStream = outputStream;
+    typer = new RealtimeSpeciesTyper(this, outputStream);
+    preTyping();
+  }
 
-	public RealtimeSpeciesTyping(BufferedReader indexBufferedReader, OutputStream outputStream) throws IOException {
-		LOG.debug("bufferedreader outputstream");
-		this.indexBufferedReader = indexBufferedReader;
-		this.outputStream = outputStream;
-		typer = new RealtimeSpeciesTyper(this, outputStream);
-		preTyping();
-	}
+  public RealtimeSpeciesTyping(BufferedReader indexBufferedReader, String outputFile) throws IOException {
+    LOG.debug("bufferedreader string");
+    this.indexBufferedReader = indexBufferedReader;
+    this.outputStream = SequenceOutputStream.makeOutputStream(outputFile);
+    typer = new RealtimeSpeciesTyper(this, outputStream);
+    preTyping();
+  }
 
-	static class SpeciesCount implements Comparable<SpeciesCount> {
-		String species;
-		int count = 0;
+  public RealtimeSpeciesTyping(BufferedReader indexBufferedReader, OutputStream outputStream) throws IOException {
+    LOG.debug("bufferedreader outputstream");
+    this.indexBufferedReader = indexBufferedReader;
+    this.outputStream = outputStream;
+    typer = new RealtimeSpeciesTyper(this, outputStream);
+    preTyping();
+  }
 
-		SpeciesCount (String s){
-			species = s;
-		}
+  static class SpeciesCount implements Comparable<SpeciesCount> {
+    String species;
+    int count = 0;
 
-		/* (non-Javadoc)
-		 * @see java.lang.Comparable#compareTo(java.lang.Object)
-		 */
-		@Override
-		public int compareTo(SpeciesCount o) {		
-			return o.count - count;
-		}
+    SpeciesCount(String s) {
+      species = s;
+    }
 
-	}
+    /* (non-Javadoc)
+     * @see java.lang.Comparable#compareTo(java.lang.Object)
+     */
+    @Override
+    public int compareTo(SpeciesCount o) {
+      return o.count - count;
+    }
 
-	private void preTyping() throws IOException{
-		String line = "";
-		while ( (line = indexBufferedReader.readLine())!=null){
-			if (line.startsWith("#"))
-				continue;
+  }
 
-			String [] toks = line.split(" ");
-			String sp =  toks[0];
-			String seq = toks[1].substring(1);
+  private void preTyping() throws IOException {
+    String line = "";
+    while ((line = indexBufferedReader.readLine()) != null) {
+      if (line.startsWith("#"))
+        continue;
 
-			if (seq2Species.put(seq, sp) != null)
-				throw new RuntimeException("sequence " + seq +" presents multiple time");
+      String[] toks = line.split(" ");
+      String sp = toks[0];
+      String seq = toks[1].substring(1);
 
-			if (species2Count.get(sp) == null){
-				LOG.debug("add species: "+sp);
-				species2Count.put(sp,new SpeciesCount(sp));
-			}			
-		}//while
-		indexBufferedReader.close();
-		LOG.info(seq2Species.size() + "   " + species2Count.size());
-		speciesList.addAll(species2Count.keySet());
+      if (seq2Species.put(seq, sp) != null)
+        throw new RuntimeException("sequence " + seq + " presents multiple time");
 
-		//Write header				
-	}
+      if (species2Count.get(sp) == null) {
+        LOG.debug("add species: " + sp);
+        species2Count.put(sp, new SpeciesCount(sp));
+      }
+    }//while
+    indexBufferedReader.close();
+    LOG.info(seq2Species.size() + "   " + species2Count.size());
+    speciesList.addAll(species2Count.keySet());
 
-	/**
-	 * @param minQual the minQual to set
-	 */
-	public void setMinQual(double minQual) {
-		this.minQual = minQual;
-	}
+    //Write header
+  }
 
-	/**
-	 * @param twoOnly the twoOnly to set
-	 */
-	public void setTwoOnly(boolean twoOnly) {
-		this.twoDOnly = twoOnly;
-	}
+  /**
+   * @param minQual the minQual to set
+   */
+  public void setMinQual(double minQual) {
+    this.minQual = minQual;
+  }
 
-	public void typing(String bamFile, int readNumber, int timeNumber) throws IOException, InterruptedException {
-		InputStream bamInputStream;
+  /**
+   * @param twoOnly the twoOnly to set
+   */
+  public void setTwoOnly(boolean twoOnly) {
+    this.twoDOnly = twoOnly;
+  }
 
-		if ("-".equals(bamFile))
-			bamInputStream = System.in;
-		else
-			bamInputStream = new FileInputStream(bamFile);
+  public void typing(String bamFile, int readNumber, int timeNumber) throws IOException, InterruptedException {
+    InputStream bamInputStream;
 
-		typing(bamInputStream, readNumber, timeNumber);
-	}
+    if ("-".equals(bamFile))
+      bamInputStream = System.in;
+    else
+      bamInputStream = new FileInputStream(bamFile);
 
-	public void typing(InputStream bamInputStream, int readNumber, int timeNumber) throws IOException, InterruptedException{
-		//if (readNumber <= 0)
-		//	readNumber = 1;			
+    typing(bamInputStream, readNumber, timeNumber);
+  }
 
-		typer.setReadPeriod(readNumber);
-		typer.setTimePeriod(timeNumber * 1000);
+  public void typing(InputStream bamInputStream, int readNumber, int timeNumber) throws IOException, InterruptedException {
+    //if (readNumber <= 0)
+    //	readNumber = 1;
 
-		LOG.info("Species typing ready at " + new Date());
+    typer.setReadPeriod(readNumber);
+    typer.setTimePeriod(timeNumber * 1000);
 
-		String readName = "", refName = "";
+    LOG.info("Species typing ready at " + new Date());
 
-		SamReaderFactory.setDefaultValidationStringency(ValidationStringency.SILENT);
-		SamReader samReader = SamReaderFactory.makeDefault().open(SamInputResource.of(bamInputStream));
-		SAMRecordIterator samIter = samReader.iterator();
+    String readName = "", refName = "";
 
-		Thread thread = new Thread(typer);
-		LOG.info("starting RealtimeSpeciesTyper thread");
-		thread.start();
-		LOG.info("started  RealtimeSpeciesTyper thread");
+    SamReaderFactory.setDefaultValidationStringency(ValidationStringency.SILENT);
+    SamReader samReader = SamReaderFactory.makeDefault().open(SamInputResource.of(bamInputStream));
+    SAMRecordIterator samIter = samReader.iterator();
 
-		boolean changedFlag = false;
-		while (samIter.hasNext()){
-			SAMRecord sam = samIter.next();
-			//LOG.info("sam read name = "+sam.getReadName());
-			//if (firstReadTime <=0)
-			//	firstReadTime = System.currentTimeMillis();
+    Thread thread = new Thread(typer);
+    LOG.info("starting RealtimeSpeciesTyper thread");
+    thread.start();
+    LOG.info("started  RealtimeSpeciesTyper thread");
 
-			if (this.twoDOnly && !sam.getReadName().contains("twodim")){
-				continue;
-			}
+    boolean changedFlag = false;
+    while (samIter.hasNext()) {
+      SAMRecord sam = samIter.next();
+      //LOG.info("sam read name = "+sam.getReadName());
+      //if (firstReadTime <=0)
+      //	firstReadTime = System.currentTimeMillis();
 
-			if (!sam.getReadName().equals(readName)){
-				readName = sam.getReadName();
-				changedFlag = true;
-				synchronized(this){
-					currentReadCount ++;
-					currentBaseCount += sam.getReadLength();
-				}
-			} else if(!refName.equals(sam.getReferenceName())){
-				changedFlag = true;
-			}
-			else
-				changedFlag = false;
-			
-			if (sam.getReadUnmappedFlag()){
-				LOG.debug("failed unmapped check");
-				continue;			
-			}
+      if (this.twoDOnly && !sam.getReadName().contains("twodim")) {
+        continue;
+      }
 
-			if (sam.getMappingQuality() < this.minQual) {
-				LOG.debug("failed minQual check");
-				continue;
-			}
+      if (!sam.getReadName().equals(readName)) {
+        readName = sam.getReadName();
+        changedFlag = true;
+        synchronized (this) {
+          currentReadCount++;
+          currentBaseCount += sam.getReadLength();
+        }
+      } else if (!refName.equals(sam.getReferenceName())) {
+        changedFlag = true;
+      } else
+        changedFlag = false;
 
-			refName = sam.getReferenceName();
-			String species = seq2Species.get(refName);
-			if (species == null){
-				throw new RuntimeException(" Can't find species with ref " + refName + " line " + currentReadCount );
-			}
+      if (sam.getReadUnmappedFlag()) {
+        LOG.debug("failed unmapped check");
+        continue;
+      }
 
-			SpeciesCount sCount = species2Count.get(species);
-			if (sCount == null){
-				throw new RuntimeException(" Can't find record with species " + species + " line " + currentReadCount );
-			}
+      if (sam.getMappingQuality() < this.minQual) {
+        LOG.debug("failed minQual check");
+        continue;
+      }
 
-			synchronized(this) {
-				currentReadAligned ++;
-				sCount.count ++;
-				
-				if(OUTSEQ && changedFlag){
-					ArrayList<String> readList = species2Seqs.get(species);
-					if( readList == null){
-						readList = new ArrayList<String>();
-						species2Seqs.put(species, readList);
-					}
-					readList.add(readName);
-				}
-			}
-		}//while
+      refName = sam.getReferenceName();
+      String species = seq2Species.get(refName);
+      if (species == null) {
+        throw new RuntimeException(" Can't find species with ref " + refName + " line " + currentReadCount);
+      }
 
-		//final run
-		//typer.simpleAnalysisCurrent();
+      SpeciesCount sCount = species2Count.get(species);
+      if (sCount == null) {
+        throw new RuntimeException(" Can't find record with species " + species + " line " + currentReadCount);
+      }
 
-		typer.stopWaiting();//Tell typer to stop
-		samIter.close();
-		samReader.close();
-	}	
+      synchronized (this) {
+        currentReadAligned++;
+        sCount.count++;
+
+        if (OUTSEQ && changedFlag) {
+          ArrayList<String> readList = species2Seqs.get(species);
+          if (readList == null) {
+            readList = new ArrayList<String>();
+            species2Seqs.put(species, readList);
+          }
+          readList.add(readName);
+        }
+      }
+    }//while
+
+    //final run
+    //typer.simpleAnalysisCurrent();
+
+    typer.stopWaiting();//Tell typer to stop
+    samIter.close();
+    samReader.close();
+  }
 
 //	public void typing(String inFile, String format, String bwaExe, int bwaThread, String bwaIndex, int readNumber, int timeNumber, int qual) throws IOException, InterruptedException{
 //		typer.setReadPeriod(readNumber);
@@ -394,138 +395,137 @@ public class RealtimeSpeciesTyping {
 //	}	
 
 
-	public static class RealtimeSpeciesTyper extends RealtimeAnalysis {
-		MultinomialCI rengine;
-		RealtimeSpeciesTyping typing;
-		public SequenceOutputStream countsOS;
+  public static class RealtimeSpeciesTyper extends RealtimeAnalysis {
+    MultinomialCI rengine;
+    RealtimeSpeciesTyping typing;
+    public SequenceOutputStream countsOS;
 
 
-		public RealtimeSpeciesTyper(RealtimeSpeciesTyping t, OutputStream outputStream) throws IOException {
-			typing = t;
-			rengine = new MultinomialCI(0.05);
+    public RealtimeSpeciesTyper(RealtimeSpeciesTyping t, OutputStream outputStream) throws IOException {
+      typing = t;
+      rengine = new MultinomialCI(0.05);
 
-			countsOS = new SequenceOutputStream(outputStream);
-			if(!JSON)
-				countsOS.print("time\tstep\treads\tbases\tspecies\tprob\terr\ttAligned\tsAligned\n");
-		}
+      countsOS = new SequenceOutputStream(outputStream);
+      if (!JSON)
+        countsOS.print("time\tstep\treads\tbases\tspecies\tprob\terr\ttAligned\tsAligned\n");
+    }
 
-		private void simpleAnalysisCurrent() throws IOException {
-			//long step = lastTime;
+    private void simpleAnalysisCurrent() throws IOException {
+      //long step = lastTime;
 
-			//Date date = new Date(lastTime);
-			Long step = (lastTime - startTime)/1000;//convert to second
+      //Date date = new Date(lastTime);
+      Long step = (lastTime - startTime) / 1000;//convert to second
 
-			int sum = 0;
-			double [] count = new double[typing.speciesList.size()];
-			for (int i = 0; i < count.length;i++){			
-				count[i] = typing.species2Count.get(typing.speciesList.get(i)).count;			
-				sum += count[i];
-			}
-			DoubleArray countArray = new DoubleArray();
-			ArrayList<String> speciesArray = new ArrayList<String> ();
+      int sum = 0;
+      double[] count = new double[typing.speciesList.size()];
+      for (int i = 0; i < count.length; i++) {
+        count[i] = typing.species2Count.get(typing.speciesList.get(i)).count;
+        sum += count[i];
+      }
+      DoubleArray countArray = new DoubleArray();
+      ArrayList<String> speciesArray = new ArrayList<String>();
 
-			int minCount = Math.max(1,sum/50);
+      int minCount = Math.max(1, sum / 50);
 
-			for (int i = 0; i < count.length;i++){			
-				if (count[i] >= minCount){
-					countArray.add(count[i]);
-					speciesArray.add(typing.speciesList.get(i));
-					LOG.info(step+" : " + typing.speciesList.get(i) + " == " + count[i]);
-				}
-			}		
-			//if (countArray.size() > 10) return;
-			countArray.add(1);
-			speciesArray.add("others");		
+      for (int i = 0; i < count.length; i++) {
+        if (count[i] >= minCount) {
+          countArray.add(count[i]);
+          speciesArray.add(typing.speciesList.get(i));
+          LOG.info(step + " : " + typing.speciesList.get(i) + " == " + count[i]);
+        }
+      }
+      //if (countArray.size() > 10) return;
+      countArray.add(1);
+      speciesArray.add("others");
 
-			rengine.assignCount(countArray.toArray());
-			rengine.eval();        
-			//REXP tab  = rengine.eval("tab",true);  
-			double [][] results =rengine.tab();
+      rengine.assignCount(countArray.toArray());
+      rengine.eval();
+      //REXP tab  = rengine.eval("tab",true);
+      double[][] results = rengine.tab();
 
-			Gson gson = new GsonBuilder().serializeNulls().create();
-			List<JsonObject> data = new ArrayList<JsonObject>();
+      Gson gson = new GsonBuilder().serializeNulls().create();
+      List<JsonObject> data = new ArrayList<JsonObject>();
 
-			for (int i = 0; i < results.length;i++){
-				if (results[i][0] <= 0.00001)
-					continue;
+      for (int i = 0; i < results.length; i++) {
+        if (results[i][0] <= 0.00001)
+          continue;
 
-				Double mid = (results[i][0] + results[i][1])/2;
-				Double err = mid - results[i][0];
-				if(!JSON) {
-					countsOS.print(timeNow + "\t" + step + "\t" + lastReadNumber + "\t" + typing.currentBaseCount + "\t" + speciesArray.get(i).replaceAll("_", " ") + "\t" + mid + "\t" + err + "\t" + typing.currentReadAligned + "\t" + countArray.get(i));
-					countsOS.println();
-				}
-				else {
-					JsonObject jo = new JsonObject();
-					jo.addProperty("species", speciesArray.get(i).replaceAll("_", " "));
-					jo.addProperty("step", step.toString());
-					jo.addProperty("reads", lastReadNumber.toString());
-					jo.addProperty("bases", typing.currentBaseCount.toString());
-					jo.addProperty("prob", mid.toString());
-					jo.addProperty("err", err.toString());
-					jo.addProperty("tAligned", typing.currentReadAligned.toString());
-					jo.addProperty("sAligned", Double.valueOf(countArray.get(i)).toString());
-					data.add(jo);
+        Double mid = (results[i][0] + results[i][1]) / 2;
+        Double err = mid - results[i][0];
+        if (!JSON) {
+          countsOS.print(timeNow + "\t" + step + "\t" + lastReadNumber + "\t" + typing.currentBaseCount + "\t" + speciesArray.get(i).replaceAll("_", " ") + "\t" + mid + "\t" + err + "\t" + typing.currentReadAligned + "\t" + countArray.get(i));
+          countsOS.println();
+        } else {
+          JsonObject jo = new JsonObject();
+          jo.addProperty("species", speciesArray.get(i).replaceAll("_", " "));
+          jo.addProperty("step", step.toString());
+          jo.addProperty("reads", lastReadNumber.toString());
+          jo.addProperty("bases", typing.currentBaseCount.toString());
+          jo.addProperty("prob", mid.toString());
+          jo.addProperty("err", err.toString());
+          jo.addProperty("tAligned", typing.currentReadAligned.toString());
+          jo.addProperty("sAligned", Double.valueOf(countArray.get(i)).toString());
+          data.add(jo);
 
-				}
-			}
+        }
+      }
 
-			if(JSON) {
-				countsOS.print(gson.toJson(ImmutableMap.of(
-						"timestamp", timeNow.toString(),
-						"data", data
-				)));
-				countsOS.println();
+      if (JSON) {
+        countsOS.print(gson.toJson(ImmutableMap.of(
+            "timestamp", timeNow.toString(),
+            "data", data
+        )));
+        countsOS.println();
 
-			}
-			countsOS.flush();
-			LOG.info(step+"  " + countArray.size());
-		}
+      }
+      countsOS.flush();
+      LOG.info(step + "  " + countArray.size());
+    }
 
-		protected void close(){
-			try{
-				//rengine.end();
-				countsOS.close();
-			}catch (Exception e){
-				e.printStackTrace();
-			}
-			
-			//print out
-			if(OUTSEQ){
-				try (BufferedWriter bw = new BufferedWriter(new FileWriter("species2reads.map"))) {
-					for(String sp:typing.species2Seqs.keySet()){
-						bw.write(">"+sp+"\n");
-						ArrayList<String> readList = typing.species2Seqs.get(sp);
-						for(String read:readList)
-							bw.write(read+"\n");
-					}			
+    protected void close() {
+      try {
+        //rengine.end();
+        countsOS.close();
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
 
-				} catch (IOException e) {
+      //print out
+      if (OUTSEQ) {
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter("species2reads.map"))) {
+          for (String sp : typing.species2Seqs.keySet()) {
+            bw.write(">" + sp + "\n");
+            ArrayList<String> readList = typing.species2Seqs.get(sp);
+            for (String read : readList)
+              bw.write(read + "\n");
+          }
 
-					e.printStackTrace();
+        } catch (IOException e) {
 
-				}
-			}
-		}
+          e.printStackTrace();
 
-		/* (non-Javadoc)
-		 * @see japsa.bio.np.RealtimeAnalysis#analysis()
-		 */
-		@Override
-		protected void analysis(){
-			try{
-				simpleAnalysisCurrent();
-			}catch (IOException e){
-				LOG.warn(e.getMessage());
-			}
-		}
+        }
+      }
+    }
 
-		/* (non-Javadoc)
-		 * @see japsa.bio.np.RealtimeAnalysis#getCurrentRead()
-		 */
-		@Override
-		protected int getCurrentRead() {
-			return typing.currentReadCount;
-		}
-	}
+    /* (non-Javadoc)
+     * @see japsa.bio.np.RealtimeAnalysis#analysis()
+     */
+    @Override
+    protected void analysis() {
+      try {
+        simpleAnalysisCurrent();
+      } catch (IOException e) {
+        LOG.warn(e.getMessage());
+      }
+    }
+
+    /* (non-Javadoc)
+     * @see japsa.bio.np.RealtimeAnalysis#getCurrentRead()
+     */
+    @Override
+    protected int getCurrentRead() {
+      return typing.currentReadCount;
+    }
+  }
 }
