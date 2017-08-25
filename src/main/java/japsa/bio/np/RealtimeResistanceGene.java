@@ -121,6 +121,66 @@ public class RealtimeResistanceGene {
     typing(bamInputStream);
   }
 
+  @NotThreadSafe
+  public Map<String, List<Sequence>> typing(InputStream bamInputStream) throws IOException, InterruptedException {
+    LOG.info("Resistance identification ready at " + new Date());
+
+    Map<String, List<Sequence>> alignmentMap = new HashMap<>();
+    SamReaderFactory.setDefaultValidationStringency(ValidationStringency.SILENT);
+    SamReader samReader = SamReaderFactory.makeDefault().open(SamInputResource.of(bamInputStream));
+    SAMRecordIterator samIter = samReader.iterator();
+
+    String readName = "";
+    //A dummy sequence
+    Sequence readSequence = new Sequence(Alphabet.DNA(), 1, "");
+
+    while (samIter.hasNext()) {
+      SAMRecord record = samIter.next();
+      String geneID = record.getReferenceName();
+      int refLength = resistFinder.geneMap.get(geneID).length();
+      int refStart = record.getAlignmentStart();
+      int refEnd = record.getAlignmentEnd();
+
+      if (this.twoDOnly && !record.getReadName().contains("twodim"))
+        continue;
+
+      if (!record.getReadName().equals(readName)) {
+        readName = record.getReadName();
+
+        currentReadCount++;
+        currentBaseCount += record.getReadLength();
+
+        //Get the read
+        if (!record.getReadUnmappedFlag()) {
+          readSequence = new Sequence(Alphabet.DNA(), record.getReadString(), readName);
+          if (record.getReadNegativeStrandFlag()) {
+            readSequence = Alphabet.DNA.complement(readSequence);
+            readSequence.setName(readName);
+          }
+        }
+      }
+
+      if (record.getReadUnmappedFlag())
+        continue;
+      if (!resistFinder.geneMap.containsKey(geneID))
+        continue;
+      if (refStart > 99 || refEnd < refLength - 99)
+        continue;
+
+      if (alignmentMap.get(geneID) == null)
+        alignmentMap.put(geneID, new ArrayList<Sequence>());
+
+      //put the sequence into alignment list
+      Sequence readSeq = HTSUtilities.readSequence(record, readSequence, 99, refLength - 99);
+      alignmentMap.get(geneID).add(readSeq);
+    }//while
+
+    samIter.close();
+    samReader.close();
+
+    LOG.info("END : " + new Date());
+  }
+
   public void typing(InputStream bamInputStream) throws IOException, InterruptedException {
     LOG.info("Resistance identification ready at " + new Date());
 
