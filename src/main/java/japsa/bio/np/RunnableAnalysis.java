@@ -46,15 +46,15 @@ import org.slf4j.LoggerFactory;
  * @author minhduc
  *
  */
-public abstract class RealtimeAnalysis implements Runnable {
-	private static final Logger LOG = LoggerFactory.getLogger(RealtimeAnalysis.class);
+public abstract class RunnableAnalysis implements Runnable {
+	private static final Logger LOG = LoggerFactory.getLogger(RunnableAnalysis.class);
 
 
 	private int readPeriod = 0;//Min number of reads before a new analysis
 	private int timePeriod = 0;//Min number of miliseconds before a new analysis	
 	private int powerNap = 1000;//sleep time in miliseconds (1 second by default)
 
-	protected RealtimeAnalysis(){
+	protected RunnableAnalysis(){
 	}
 
 	private boolean waiting = true;

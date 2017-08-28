@@ -1,5 +1,6 @@
 package japsa.bio.np;
 
+import japsa.bio.detection.DetectedGeneRecord;
 import japsa.seq.FastaReader;
 import japsa.seq.SequenceOutputStream;
 import org.apache.commons.io.FileUtils;
@@ -8,6 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.util.Date;
+import java.util.Set;
 
 import static junit.framework.TestCase.assertTrue;
 
@@ -19,7 +22,7 @@ public class RealtimeResistanceGeneTest {
   public void testTyping() throws Exception {
     int readNumber = 0;
     int timeNumber = 1;
-    Double scoreThreshold = 1.99D;
+    Double scoreThreshold = 1D;
     String resDir  = "src/test/resources/resFinder";
     String recordPrefix = "JUNIT";
 
@@ -44,9 +47,9 @@ public class RealtimeResistanceGeneTest {
     ByteArrayOutputStream outStream = new ByteArrayOutputStream();
     RealtimeResistanceGene rg = new RealtimeResistanceGene(readNumber, timeNumber, outStream, resDBInputStream0, fastaInputStream0, recordPrefix);
     RealtimeResistanceGene.JSON = true;
-    rg.setScoreThreshold(scoreThreshold);
-    rg.typing(bamInputStream0);
+    RealtimeResistanceGene.scoreThreshold = scoreThreshold;
 
+    rg.typing(bamInputStream0);
     try {
       Thread.sleep(10000);
     } catch (InterruptedException e) {
@@ -57,15 +60,23 @@ public class RealtimeResistanceGeneTest {
 
     BufferedReader br = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(outStream.toByteArray())));
     jsonLine = br.readLine();
-    LOG.info(jsonLine);
-    assertTrue(jsonLine.indexOf("lastReadNumber\":0}") > 0);
+    LOG.info("got JSON 1: "+jsonLine);
+    assertTrue(jsonLine.indexOf("currentReadCount\":1}") > 0);
 
     jsonLine = br.readLine();
-    LOG.info(jsonLine);
-    assertTrue(jsonLine.indexOf("lastReadNumber\":1}") > 0);
-
-    jsonLine = br.readLine();
-    LOG.info(jsonLine);
+    LOG.info("got JSON 2: "+jsonLine);
+    LOG.info(""+jsonLine.indexOf("currentReadCount"));
+    assertTrue(jsonLine.indexOf("currentBaseCount\":842") > 0);
     assertTrue(jsonLine.indexOf("JSA_361") > 0);
+
+    Set<DetectedGeneRecord> geneRecords = rg.getGenes();
+    for (DetectedGeneRecord gr : geneRecords) {
+      LOG.info("PULL1: "+gr.asJsonString());
+    }
+    geneRecords = rg.getGenes();
+    for (DetectedGeneRecord gr : geneRecords) {
+      LOG.info("PULL2: "+gr.asJsonString());
+    }
+
   }
 }
