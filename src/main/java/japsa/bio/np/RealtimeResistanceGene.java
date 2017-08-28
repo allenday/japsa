@@ -34,33 +34,17 @@
 
 package japsa.bio.np;
 
-import com.google.common.collect.ImmutableMap;
+import japsa.bio.detection.DetectedGeneRecord;
+import japsa.seq.*;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonObject;
-import japsa.bio.alignment.ProbFSM.Emission;
-import japsa.bio.alignment.ProbFSM.ProbOneSM;
-//import japsa.bio.alignment.ProbFSM.ProbThreeSM;
-import japsa.seq.Alphabet;
-import japsa.seq.FastaReader;
-import japsa.seq.Sequence;
-import japsa.seq.SequenceOutputStream;
-import japsa.seq.SequenceReader;
+import htsjdk.samtools.*;
 import japsa.util.HTSUtilities;
-import htsjdk.samtools.SAMRecord;
-import htsjdk.samtools.SAMRecordIterator;
-import htsjdk.samtools.SamInputResource;
-import htsjdk.samtools.SamReader;
-import htsjdk.samtools.SamReaderFactory;
-import htsjdk.samtools.ValidationStringency;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author minhduc
@@ -68,18 +52,27 @@ import java.util.concurrent.TimeUnit;
 
 public class RealtimeResistanceGene {
   private static final Logger LOG = LoggerFactory.getLogger(RealtimeResistanceGene.class);
-  public static boolean JSON = false;
+  private RunnableResistanceGeneAnalysis resistFinder;
+  private HashMap<String, List<Sequence>> alignmentMap = new HashMap<>();
+  private static Map<String, String> geneNames = new HashMap<String, String>();
 
-  private ResistanceGeneFinder resistFinder;
-  private HashMap<String, ArrayList<Sequence>> alignmentMap;
-  private Integer currentReadCount = 0;
-  private Long currentBaseCount = 0L;
+  private static Map<String, String> geneGroups = new HashMap<String, String>();
+  private static Map<String, Sequence> geneSequences = new HashMap<String, Sequence>();
+  private Integer readsObserved = 0;
+  private Long basesObserved = 0L;
+  private static final Gson gson = new GsonBuilder().serializeNulls().create();
+  static Boolean JSON = false;
+  static Long observedBaseCount = 0L;
+  static Integer observedReadCount = 0;
 
-  public String msa = "kalign";
+  public static String msa = "kalign";
 
-  public Double scoreThreshold = 2D;
-  public Boolean twoDOnly = false;
-  public Integer numThead = 4;
+  public static Double scoreThreshold = 2D;
+  public static Boolean twoDOnly = false;
+  public static Integer numThead = 4;
+
+  Thread analysisThread = null;
+  Long startTime = -1L;
 
   public RealtimeResistanceGene(Integer read, Integer time, String outputFile, String resDB, String recordPrefix) throws IOException {
     File geneListFile = new File(resDB + "/geneList");
@@ -88,443 +81,172 @@ public class RealtimeResistanceGene {
     InputStream resDBInputStream = new FileInputStream(geneListFile);
     InputStream fastaInputStream = new FileInputStream(fastaFile);
 
-    resistFinder = new ResistanceGeneFinder(this, outStream, resDBInputStream, fastaInputStream, recordPrefix);
+    resistFinder = new RunnableResistanceGeneAnalysis(this, outStream, recordPrefix);
     resistFinder.setReadPeriod(read);
     resistFinder.setTimePeriod(time * 1000);
+
+    loadGeneInfo(fastaInputStream, resDBInputStream);
   }
 
-  public RealtimeResistanceGene(Integer read, Integer time, OutputStream outStream, InputStream resDBInputStream, InputStream fastaInputStream, String recordPrefix) throws IOException {
-    resistFinder = new ResistanceGeneFinder(this, outStream, resDBInputStream, fastaInputStream, recordPrefix);
+  RealtimeResistanceGene(Integer read, Integer time, OutputStream outStream, InputStream resDBInputStream, InputStream fastaInputStream, String recordPrefix) throws IOException {
+    resistFinder = new RunnableResistanceGeneAnalysis(this, outStream, recordPrefix);
     resistFinder.setReadPeriod(read);
     resistFinder.setTimePeriod(time * 1000);
+
+    loadGeneInfo(fastaInputStream, resDBInputStream);
   }
 
-  public void setScoreThreshold(Double value) {
-    this.scoreThreshold = value;
+  private void loadGeneInfo(InputStream fastaInputStream, InputStream resDBInputStream) throws IOException {
+    readGeneClassInformation(fastaInputStream); // step 1
+    LOG.info("geneGroups = " + getGeneGroupCount());
+    LOG.info("geneNames = " + getGeneNameCount());
+    LOG.info("geneSequences = " + getGeneSequenceCount());
+
+    readGeneInformation(resDBInputStream);      // step 2
+    LOG.info("geneGroups = " + getGeneGroupCount());
+    LOG.info("geneNames = " + getGeneNameCount());
+    LOG.info("geneSequences = " + getGeneSequenceCount());
   }
 
-  /**
-   * Support legacy filename-based calls
-   *
-   * @param bamFile
-   * @throws IOException
-   * @throws InterruptedException
-   */
-  public void typing(String bamFile) throws IOException, InterruptedException {
-    InputStream bamInputStream;
+  Map<String,List<Sequence>> getAlignmentMap() {
+    return alignmentMap;
+  }
+  static String getGeneGroup(String geneID) {
+    return geneGroups.get(geneID);
+  }
+  static String getGeneName(String geneID) {
+    return geneNames.get(geneID);
+  }
+  public static Set<String> getGeneSequences() {
+    return geneSequences.keySet();
+  }
+  static Sequence getGeneSequence(String geneID) {
+    return geneSequences.get(geneID);
+  }
+  private Integer getGeneSequenceCount() {
+    return geneSequences.keySet().size();
+  }
+  private Integer getGeneGroupCount() {
+    return geneGroups.size();
+  }
+  private Integer getGeneNameCount() {
+    return geneNames.size();
+  }
+  private void putGeneName(String geneID, String geneName) {
+    geneNames.put(geneID, geneName);
+  }
+  private void putGeneGroup(String geneID, String geneGroup) {
+    geneGroups.put(geneID, geneGroup);
+  }
+  private void putGeneSequence(String geneID, Sequence sequence) {
+    geneSequences.put(geneID, sequence);
+  }
 
-    if ("-".equals(bamFile))
-      bamInputStream = System.in;
+  public static DetectedGeneRecord createDetectedGeneRecord(String geneID) {
+    DetectedGeneRecord gr = new DetectedGeneRecord();
+    gr.geneID = geneID;
+    gr.geneName = getGeneName(geneID);
+    gr.geneGroup = getGeneGroup(geneID);
+    return gr;
+  }
+
+  public void typing(String samFile) throws IOException, InterruptedException {
+    InputStream samInputStream;
+
+    if ("-".equals(samFile))
+      samInputStream = System.in;
     else
-      bamInputStream = new FileInputStream(bamFile);
+      samInputStream = new FileInputStream(samFile);
 
-    typing(bamInputStream);
+    typing(samInputStream);
   }
 
-  @NotThreadSafe
-  public Map<String, List<Sequence>> typing(InputStream bamInputStream) throws IOException, InterruptedException {
+  public void typing(InputStream samInputStream) throws IOException, InterruptedException {
     LOG.info("Resistance identification ready at " + new Date());
+    resistFinder.samInputStream = samInputStream;
+    startTime = System.currentTimeMillis();
+    analysisThread = new Thread(resistFinder, "analysisThread");
+    analysisThread.start();
+  }
 
-    Map<String, List<Sequence>> alignmentMap = new HashMap<>();
-    SamReaderFactory.setDefaultValidationStringency(ValidationStringency.SILENT);
-    SamReader samReader = SamReaderFactory.makeDefault().open(SamInputResource.of(bamInputStream));
-    SAMRecordIterator samIter = samReader.iterator();
+  public Set<DetectedGeneRecord> getGenes() throws IOException, InterruptedException {
+    Set<DetectedGeneRecord> geneRecordSet = new HashSet<>();
 
     String readName = "";
     //A dummy sequence
-    Sequence readSequence = new Sequence(Alphabet.DNA(), 1, "");
+    //Sequence readSequence = new Sequence(Alphabet.DNA(), 1, "");
 
-    while (samIter.hasNext()) {
-      SAMRecord record = samIter.next();
-      String geneID = record.getReferenceName();
-      int refLength = resistFinder.geneMap.get(geneID).length();
-      int refStart = record.getAlignmentStart();
-      int refEnd = record.getAlignmentEnd();
-
-      if (this.twoDOnly && !record.getReadName().contains("twodim"))
-        continue;
-
-      if (!record.getReadName().equals(readName)) {
-        readName = record.getReadName();
-
-        currentReadCount++;
-        currentBaseCount += record.getReadLength();
-
-        //Get the read
-        if (!record.getReadUnmappedFlag()) {
-          readSequence = new Sequence(Alphabet.DNA(), record.getReadString(), readName);
-          if (record.getReadNegativeStrandFlag()) {
-            readSequence = Alphabet.DNA.complement(readSequence);
-            readSequence.setName(readName);
-          }
-        }
+    Long timeLast = System.currentTimeMillis();
+    synchronized(this) {
+      for (String geneID : getAlignmentMap().keySet()) {
+        DetectedGeneRecord gr = new DetectedGeneRecord();
+        gr.geneID = geneID;
+        gr.geneGroup = getGeneGroup(geneID);
+        gr.geneName = getGeneName(geneID);
+        gr.timeStart = startTime;
+        gr.timeNow = timeLast;
+        gr.observedBaseCount = observedBaseCount;
+        gr.observedReadCount = observedReadCount;
+        geneRecordSet.add(gr);
       }
+      getAlignmentMap().clear();
+    }
 
-      if (record.getReadUnmappedFlag())
-        continue;
-      if (!resistFinder.geneMap.containsKey(geneID))
-        continue;
-      if (refStart > 99 || refEnd < refLength - 99)
-        continue;
-
-      if (alignmentMap.get(geneID) == null)
-        alignmentMap.put(geneID, new ArrayList<Sequence>());
-
-      //put the sequence into alignment list
-      Sequence readSeq = HTSUtilities.readSequence(record, readSequence, 99, refLength - 99);
-      alignmentMap.get(geneID).add(readSeq);
-    }//while
-
-    samIter.close();
-    samReader.close();
-
-    LOG.info("END : " + new Date());
+    return geneRecordSet;
   }
 
-  public void typing(InputStream bamInputStream) throws IOException, InterruptedException {
-    LOG.info("Resistance identification ready at " + new Date());
+  private void readGeneClassInformation(InputStream fastaInputStream) throws IOException {
 
-    alignmentMap = new HashMap<String, ArrayList<Sequence>>();
-    SamReaderFactory.setDefaultValidationStringency(ValidationStringency.SILENT);
-    SamReader samReader = SamReaderFactory.makeDefault().open(SamInputResource.of(bamInputStream));
-    SAMRecordIterator samIter = samReader.iterator();
+    SequenceReader sequenceReader = FastaReader.getReader(fastaInputStream);
+    assert sequenceReader != null;
 
-    Thread t = new Thread(resistFinder, "SSS");
-    t.start();
-
-    String readName = "";
-    //A dummy sequence
-    Sequence readSequence = new Sequence(Alphabet.DNA(), 1, "");
-
-    while (samIter.hasNext()) {
-      SAMRecord record = samIter.next();
-      String geneID = record.getReferenceName();
-      int refLength = resistFinder.geneMap.get(geneID).length();
-      int refStart = record.getAlignmentStart();
-      int refEnd = record.getAlignmentEnd();
-
-      if (this.twoDOnly && !record.getReadName().contains("twodim"))
-        continue;
-
-      if (!record.getReadName().equals(readName)) {
-        readName = record.getReadName();
-
-        currentReadCount++;
-        currentBaseCount += record.getReadLength();
-
-        //Get the read
-        if (!record.getReadUnmappedFlag()) {
-          readSequence = new Sequence(Alphabet.DNA(), record.getReadString(), readName);
-          if (record.getReadNegativeStrandFlag()) {
-            readSequence = Alphabet.DNA.complement(readSequence);
-            readSequence.setName(readName);
-          }
+    Sequence seq = null;
+    while ((seq = sequenceReader.nextSequence(Alphabet.DNA())) != null) {
+      putGeneSequence(seq.getName(), seq);
+      String desc = seq.getDesc();
+      //LOG.info("got geneDesc: " + desc);
+      String[] toks = desc.split(";");
+      for (String tok : toks) {
+        if (tok.startsWith("dg=")) {
+          String geneGroup = tok.substring(3);
+          //LOG.info("* geneGroup: " + geneGroup);
+          putGeneGroup(seq.getName(), geneGroup);
+        }
+        if (tok.startsWith("geneID=")) {
+          String proteinID = tok.substring(7);
+          //LOG.info("* proteinID: " + proteinID);
+          putGeneName(seq.getName(), proteinID);
         }
       }
-
-      if (record.getReadUnmappedFlag())
-        continue;
-      if (!resistFinder.geneMap.containsKey(geneID))
-        continue;
-      if (refStart > 99 || refEnd < refLength - 99)
-        continue;
-
-      synchronized (this) {
-        if (alignmentMap.get(geneID) == null)
-          alignmentMap.put(geneID, new ArrayList<Sequence>());
-
-        //put the sequence into alignment list
-        Sequence readSeq = HTSUtilities.readSequence(record, readSequence, 99, refLength - 99);
-        alignmentMap.get(geneID).add(readSeq);
-      }//synchronized(this)
-    }//while
-
-    resistFinder.stopWaiting();
-    samIter.close();
-    samReader.close();
-
-    LOG.info("END : " + new Date());
-  }
-
-  //TODO: way to improve performance:
-  //1.
-  //3. options: gene or antibiotics class
-  //4.
-  //5. Future improve: incrementally multiple alignment
-
-  public static class ResistanceGeneFinder extends RealtimeAnalysis {
-    private final Map<String, ArrayList<Sequence>> alignmentMapSnap = new HashMap<String, ArrayList<Sequence>>();
-    private final Map<String, String> gene2GeneName = new HashMap<String, String>();
-    private final Map<String, String> gene2Group = new HashMap<String, String>();
-    private final Map<String, Sequence> geneMap = new HashMap<String, Sequence>();
-    private final List<String> geneList = new ArrayList<String>();
-
-    //Set of genes confirmed to have found
-    private final HashSet<String> predictedGenes = new HashSet<String>();
-
-    private final Gson gson = new GsonBuilder().serializeNulls().create();
-
-    private String recordPrefix = "tmp";
-    private RealtimeResistanceGene resistGene;
-    private SequenceOutputStream sequenceOutputStream;
-
-    public ResistanceGeneFinder(RealtimeResistanceGene resistGene, String outputFile, String resDB, String recordPrefix) throws IOException {
-      this(resistGene, new FileOutputStream(outputFile), resDB, recordPrefix);
-    }
-
-    public ResistanceGeneFinder(RealtimeResistanceGene resistGene, OutputStream outStream, String resDB, String recordPrefix) throws IOException {
-      this(resistGene, outStream, new FileInputStream(new File(resDB + "/geneList")), new FileInputStream(new File(resDB + "/DB.fasta")), recordPrefix);
-    }
-
-    public ResistanceGeneFinder(RealtimeResistanceGene resistGene, OutputStream outStream, InputStream resDBInputStream, InputStream fastaInputStream, String recordPrefix) throws IOException {
-      this.resistGene = resistGene;
-
-      readGeneClassInformation(fastaInputStream); // step 1
-      readGeneInformation(resDBInputStream);      // step 2
-
-      LOG.info("geneList = " + geneList.size());
-      LOG.info("geneMap = " + geneMap.size());
-      LOG.info("gene2Group = " + gene2Group.size());
-      LOG.info("gene2GeneName = " + gene2GeneName.size());
-
-      this.recordPrefix = recordPrefix;
-      this.sequenceOutputStream = new SequenceOutputStream(outStream);
-    }
-
-    private void readGeneClassInformation(InputStream fastaInputStream) throws IOException {
-      List<Sequence> drGeneList = new ArrayList<Sequence>();
-
-      SequenceReader sequenceReader = FastaReader.getReader(fastaInputStream);
-
-      while (true) {
-        Sequence fastaSequence = sequenceReader.nextSequence(Alphabet.DNA());
-        if (fastaSequence == null)
-          break;
-        //LOG.info("fastaSequence = "+fastaSequence);
-        drGeneList.add(fastaSequence);
-      }
-      for (Sequence seq : drGeneList) {
-        geneMap.put(seq.getName(), seq);
-        geneList.add(seq.getName());
-
-        String desc = seq.getDesc();
-        String[] toks = desc.split(";");
-        for (String tok : toks) {
-          if (tok.startsWith("dg=")) {
-            addGeneInfo(gene2Group, seq.getName(), tok.substring(3));
-          }
-          if (tok.startsWith("geneID=")) {
-            String proteinID = tok.substring(7);
-            addGeneInfo(gene2GeneName, seq.getName(), proteinID);
-          }
-        }
-      }
-    }
-
-    private void readGeneInformation(InputStream geneInfoInputStream) throws IOException {
-      BufferedReader bf = SequenceReader.openInputStream(geneInfoInputStream);
-      String line = "";
-      while ((line = bf.readLine()) != null) {
-        String[] toks = line.trim().split(" ");
-        if (toks.length < 3)
-          continue;
-
-        addGeneInfo(gene2Group, toks[0], toks[2]);
-        addGeneInfo(gene2GeneName, toks[0], toks[1]);
-
-      }
-      bf.close();
-    }
-
-    private void addGeneInfo(Map<String, String> map, String key, String info) {
-      String s = map.get(key);
-      if (s == null)
-        map.put(key, info);
-      else {
-        if (!s.contains(info)) {
-          s = s + ", " + info;
-          map.put(key, s);
-        }
-      }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void antiBioticAnalysis() {
-
-      try {
-        if (!JSON) {
-          sequenceOutputStream.print("##" + timeNow + "\t" + (this.lastTime - this.startTime) + "\t" + this.lastReadNumber + "\n");
-        } else {
-          JsonObject jo = new JsonObject();
-          jo.addProperty("timestamp", timeNow);
-          jo.addProperty("timeLast", this.lastTime);
-          jo.addProperty("timeStart", this.startTime);
-          jo.addProperty("timeWaited", (this.lastTime - this.startTime));
-          jo.addProperty("lastReadNumber", this.lastReadNumber);
-          sequenceOutputStream.print(gson.toJson(jo));
-          sequenceOutputStream.println();
-        }
-        sequenceOutputStream.flush();
-
-        //1. Make a snapshot of the current alignment
-        synchronized (resistGene) {
-          //lastTime = System.currentTimeMillis();
-          //lastReadNumber = resistGene.currentReadCount;
-          for (String gene : resistGene.alignmentMap.keySet()) {
-            ArrayList<Sequence> readMap = resistGene.alignmentMap.get(gene);
-            alignmentMapSnap.put(gene, (ArrayList<Sequence>) readMap.clone());
-          }
-        }//synchronized(resistGene)
-
-        runIndex++;
-        //Now can make the call
-        antiBioticsProfile();
-      } catch (IOException e) {
-        e.printStackTrace();
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-      }
-
-    }
-
-    /****
-     *
-     * @throws IOException
-     * @throws InterruptedException
-     */
-
-    int runIndex = 0;
-
-    private void antiBioticsProfile() throws IOException, InterruptedException {
-      int jobNo = 0;
-      //Get list of genes from my
-      ExecutorService executor = Executors.newFixedThreadPool((resistGene.numThead > 2) ? resistGene.numThead - 2 : 1);
-
-      for (String geneID : geneList) {
-        if (predictedGenes.contains(geneID))
-          continue;
-
-        List<Sequence> alignmentList = alignmentMapSnap.get(geneID);
-        Sequence consensus =
-            ErrorCorrection.consensusSequence(alignmentList, recordPrefix + "_" + geneID + "_" + runIndex, resistGene.msa);
-
-        if (consensus == null) {
-          continue;//gene
-        }
-
-        Sequence gene = geneMap.get(geneID);
-        gene = gene.subSequence(99, gene.length() - 100);
-
-        FSMThread thread = new FSMThread();
-        thread.resGeneFinder = this;
-        thread.consensus = consensus;
-        thread.gene = gene;
-        thread.geneID = geneID;
-
-        executor.execute(thread);
-        jobNo++;
-      }
-      executor.shutdown();
-      executor.awaitTermination(3, TimeUnit.DAYS);
-      LOG.info("===Found " + predictedGenes.size() + " vs " + geneMap.size() + "  " + alignmentMapSnap.size() + " with " + jobNo);
-    }
-
-    private void addPreditedGene(String geneID) throws IOException {
-      predictedGenes.add(geneID);
-      if (!JSON) {
-        sequenceOutputStream.print(timeNow + "\t" + (this.lastTime - this.startTime) / 1000 + "\t" + lastReadNumber + "\t" + resistGene.currentBaseCount + "\t" + geneID + "\t" + gene2GeneName.get(geneID) + "\t" + gene2Group.get(geneID) + "\n");
-      } else {
-        JsonObject jo = new JsonObject();
-        jo.addProperty("timeStamp", timeNow);
-        jo.addProperty("timeLast", this.lastTime);
-        jo.addProperty("timeStart", this.startTime);
-        jo.addProperty("timeWaited", (this.lastTime - this.startTime));
-        jo.addProperty("lastReadNumber", this.lastReadNumber);
-        jo.addProperty("currentBaseCount", resistGene.currentBaseCount);
-        jo.addProperty("currentReadCount", resistGene.currentReadCount);
-        jo.addProperty("geneID", geneID);
-        jo.addProperty("geneName", gene2GeneName.get(geneID));
-        jo.addProperty("geneGroup", gene2Group.get(geneID));
-        sequenceOutputStream.print(gson.toJson(jo));
-        sequenceOutputStream.println();
-      }
-      sequenceOutputStream.flush();
-    }
-
-    private static double fsmAlignment(Sequence consensus, Sequence gene) {
-      ProbOneSM tsmF = new ProbOneSM(gene);
-      double cost = 100000000;
-      for (int c = 0; c < 10; c++) {
-        tsmF.resetCount();
-        Emission retState = tsmF.alignGenerative(consensus);
-        if (cost <= retState.myCost)
-          break;//for c
-
-        cost = retState.myCost;
-        int emitCount = tsmF.updateCount(retState);
-        LOG.info("Iter " + c + " : " + emitCount + " states and " + cost + " bits " + consensus.length() + "bp " + consensus.getName() + " by " + gene.getName());
-        tsmF.reEstimate();
-      }
-      return (consensus.length() * 2 - cost) / gene.length();
-    }
-
-
-    /* (non-Javadoc)
-     * @see japsa.bio.np.RealtimeAnalysis#close()
-     */
-    @Override
-    protected void close() {
-      try {
-        sequenceOutputStream.close();
-      } catch (IOException e) {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
-      }
-    }
-
-    /* (non-Javadoc)
-     * @see japsa.bio.np.RealtimeAnalysis#analysis()
-     */
-    @Override
-    protected void analysis() {
-      antiBioticAnalysis();
-
-    }
-
-    /* (non-Javadoc)
-     * @see japsa.bio.np.RealtimeAnalysis#getCurrentRead()
-     */
-    @Override
-    protected int getCurrentRead() {
-      return resistGene.currentReadCount;
-
     }
   }
 
-  static class FSMThread implements Runnable {
-    ResistanceGeneFinder resGeneFinder;
-    Sequence consensus, gene;
-    String geneID;
+  private void readGeneInformation(InputStream geneInfoInputStream) throws IOException {
+    BufferedReader bf = SequenceReader.openInputStream(geneInfoInputStream);
+    String line = "";
+    while ((line = bf.readLine()) != null) {
+      String[] toks = line.trim().split(" ");
+      if (toks.length < 3)
+        continue;
 
-    /* (non-Javadoc)
-     * @see java.lang.Runnable#run()
-     */
-    @Override
-    public void run() {
-      double score = ResistanceGeneFinder.fsmAlignment(consensus, gene);
-      LOG.info("SGF: score=" + score + " geneID=" + geneID + " group=" + resGeneFinder.gene2Group.get(geneID));
+      String geneID = toks[0];
+      String geneName = toks[1];
+      String geneGroup = toks[2];
 
-      if (score >= resGeneFinder.resistGene.scoreThreshold) {
-        synchronized (resGeneFinder) {
-          try {
-            resGeneFinder.addPreditedGene(geneID);
-            LOG.info("ADDF " + geneID);//
-          } catch (IOException e) {
-            e.printStackTrace();
-          }
-        }
-      }
+      //LOG.info("got geneInfo: " + line);
+      //LOG.info("* geneName: " + geneName);
+      //LOG.info("* geneGroup: " + geneGroup);
+
+      if (getGeneName(geneID) == null)
+        putGeneName(geneID, geneName);
+      else
+        putGeneName(geneID, getGeneName(geneID) + ", " + geneName);
+
+      if (getGeneGroup(geneID) == null)
+        putGeneGroup(geneID, geneGroup);
+      else
+        putGeneGroup(geneID, getGeneGroup(geneID) + ", " + geneGroup);
     }
-
+    bf.close();
   }
 }
