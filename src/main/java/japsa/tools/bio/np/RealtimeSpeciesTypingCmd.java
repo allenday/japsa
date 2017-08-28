@@ -34,11 +34,11 @@
  ****************************************************************************/
 package japsa.tools.bio.np;
 
-import java.io.IOException;
-
 import japsa.bio.np.RealtimeSpeciesTyping;
 import japsa.util.CommandLine;
 import japsa.util.deploy.Deployable;
+
+import java.io.IOException;
 
 /**
  * @author minhduc
