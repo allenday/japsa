@@ -7,7 +7,7 @@ import java.lang.ProcessBuilder.Redirect;
 import java.util.ArrayList;
 import java.util.Date;
 
-import japsa.bio.np.RealtimeAnalysis;
+import japsa.bio.np.RunnableAnalysis;
 import japsa.seq.Alphabet;
 import japsa.seq.Sequence;
 import japsa.seq.SequenceOutputStream;
@@ -277,7 +277,7 @@ public class RealtimeScaffolding {
 		reader.close();		
 
 	}
-	public static class RealtimeScaffolder extends RealtimeAnalysis{
+	public static class RealtimeScaffolder extends RunnableAnalysis{
 		RealtimeScaffolding scaffolding;
 		public SequenceOutputStream outOS;
 		RealtimeScaffolder(RealtimeScaffolding scf, String output)  throws IOException{
