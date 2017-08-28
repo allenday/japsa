@@ -194,7 +194,7 @@ public class RealtimeMLST{
 		//typer.makeMLSTTyping0(top);		
 	}	
 
-	public static class RealtimeMLSTyper extends RealtimeAnalysis{
+	public static class RealtimeMLSTyper extends RunnableAnalysis {
 		RealtimeMLST typing;
 		public SequenceOutputStream countsOS;
 		MLSTyping mlstScheme;
