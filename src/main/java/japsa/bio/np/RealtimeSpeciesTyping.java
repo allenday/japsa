@@ -395,7 +395,7 @@ public class RealtimeSpeciesTyping {
 //	}	
 
 
-  public static class RealtimeSpeciesTyper extends RealtimeAnalysis {
+  public static class RealtimeSpeciesTyper extends RunnableAnalysis {
     MultinomialCI rengine;
     RealtimeSpeciesTyping typing;
     public SequenceOutputStream countsOS;

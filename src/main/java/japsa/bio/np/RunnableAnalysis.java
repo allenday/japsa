@@ -113,7 +113,9 @@ public abstract class RunnableAnalysis implements Runnable {
 		lastTime = System.currentTimeMillis();
 		lastReadNumber =  getCurrentRead();
 		timeNow = new Date(lastTime).toString();
+
 		analysis();
+
 		LOG.info("RUNTIME\t" + timeNow  + "\t" + (this.lastTime - this.startTime)/1000.0 + "\t" + this.lastReadNumber + "\t" + (System.currentTimeMillis() - lastTime)/1000.0);
 		//.. and close it
 		close();

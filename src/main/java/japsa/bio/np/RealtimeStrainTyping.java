@@ -242,7 +242,7 @@ public class RealtimeStrainTyping {
     return (intersect + 0.0) / (notIn + s2.size());
   }
 
-  public static class RealtimeStrainTyper extends RealtimeAnalysis {
+  public static class RealtimeStrainTyper extends RunnableAnalysis {
     //Set of genes that seen from the sample
     HashSet<String> seenGenes = new HashSet<String>();
     double threshold = 0;
