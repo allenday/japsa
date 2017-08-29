@@ -6,7 +6,7 @@
 
     <groupId>coin</groupId>
     <artifactId>japsa</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.7.8a-SNAPSHOT</version>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
@@ -76,26 +76,11 @@
 		    <artifactId>hdf-java</artifactId>
 		    <version>2.6.1</version>
 		</dependency>
-		<dependency>
-		    <groupId>com.colloquial</groupId>
-		    <artifactId>arithcode</artifactId>
-		    <version>1.1</version>
-		</dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
             <version>2.3</version>
         </dependency>
-
-        <!--
-        JRI.jar
-        JRIEngine.jar
-        REngine.jar
-        colloquial.jar
-        jfxrt.jar
-        jhdf5.jar
-        jhdfobj.jar
-        -->
     </dependencies>
 
     <build>
@@ -128,12 +113,14 @@
                			 		</transformer>				
               				</transformers>
               				<finalName>japsa-1.7.8a</finalName>
+<!--
               				<excludes>
               					<exclude>japsa/**</exclude>
               				</excludes>
               				<includes>
               					<include>japsa/tools/bio/np/RealtimeSpeciesTypingCmd</include>
               				</includes>
+-->
                         </configuration>
                     </execution>
                 </executions>
