@@ -10,76 +10,81 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
-    
-	<repositories>
-	  <repository>
-	    <id>libs</id>
-	    <name>libs</name>
-	    <url>file://${project.basedir}/libs</url>
-	  </repository>
-	</repositories>
-    
+
+    <repositories>
+        <repository>
+            <id>libs</id>
+            <name>libs</name>
+            <url>file://${project.basedir}/libs</url>
+        </repository>
+    </repositories>
+
     <dependencies>
-<dependency>
-    <groupId>junit</groupId>
-    <artifactId>junit</artifactId>
-    <version>4.8.1</version>
-    <scope>test</scope>
-</dependency>
-		<dependency>
-		    <groupId>org.apache.commons</groupId>
-		    <artifactId>commons-math3</artifactId>
-		    <version>3.0</version>
-		</dependency>
-		<dependency>
-		    <groupId>commons-io</groupId>
-		    <artifactId>commons-io</artifactId>
-		    <version>2.5</version>
-		</dependency>
-		<dependency>
-		    <groupId>javax.json</groupId>
-		    <artifactId>javax.json-api</artifactId>
-		    <version>1.0</version>
-		</dependency>
-		<dependency>
-		    <groupId>org.slf4j</groupId>
-		    <artifactId>slf4j-api</artifactId>
-		    <version>1.7.25</version>
-		</dependency>
-		<dependency>
-		    <groupId>org.slf4j</groupId>
-		    <artifactId>slf4j-simple</artifactId>
-		    <version>1.7.25</version>
-		</dependency>
-		<dependency>
-		    <groupId>org.jfree</groupId>
-		    <artifactId>jcommon</artifactId>
-		    <version>1.0.23</version>
-		</dependency>
-		<dependency>
-		    <groupId>org.jfree</groupId>
-		    <artifactId>jfreechart</artifactId>
-		    <version>1.0.19</version>
-		</dependency>
-		<dependency>
-		    <groupId>com.google.guava</groupId>
-		    <artifactId>guava</artifactId>
-		    <version>18.0</version>
-		</dependency>
-		<dependency>
-		    <groupId>com.github.samtools</groupId>
-		    <artifactId>htsjdk</artifactId>
-		    <version>2.10.1</version>
-		</dependency>
-		<dependency>
-		    <groupId>org.hdfgroup</groupId>
-		    <artifactId>hdf-java</artifactId>
-		    <version>2.6.1</version>
-		</dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.8.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-math3</artifactId>
+            <version>3.0</version>
+        </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.5</version>
+        </dependency>
+        <dependency>
+            <groupId>javax.json</groupId>
+            <artifactId>javax.json-api</artifactId>
+            <version>1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.25</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>1.7.25</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jfree</groupId>
+            <artifactId>jcommon</artifactId>
+            <version>1.0.23</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jfree</groupId>
+            <artifactId>jfreechart</artifactId>
+            <version>1.0.19</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>18.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.samtools</groupId>
+            <artifactId>htsjdk</artifactId>
+            <version>2.10.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.hdfgroup</groupId>
+            <artifactId>hdf-java</artifactId>
+            <version>2.6.1</version>
+        </dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
             <version>2.3</version>
+        </dependency>
+        <dependency>
+            <groupId>com.colloquial</groupId>
+            <artifactId>arithcode</artifactId>
+            <version>1.1</version>
         </dependency>
     </dependencies>
 
@@ -94,33 +99,34 @@
                         <goals>
                             <goal>shade</goal>
                         </goals>
-						<!--                         
-						<configuration>
+                        <!--
+                        <configuration>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
                         </configuration> 
                         -->
                         <configuration>
-								<!--                             
-								<shadedArtifactAttached>true</shadedArtifactAttached>
- 								-->                            
- 								<transformers>
-                				<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                  				<manifestEntries>
-                    				<Main-Class>japsa.tools.bio.np.RealtimeSpeciesTypingCmd</Main-Class>
-                  				</manifestEntries>
-               			 		</transformer>				
-              				</transformers>
-              				<finalName>japsa-1.7.8a</finalName>
-<!--
-              				<excludes>
-              					<exclude>japsa/**</exclude>
-              				</excludes>
-              				<includes>
-              					<include>japsa/tools/bio/np/RealtimeSpeciesTypingCmd</include>
-              				</includes>
--->
+                            <!--
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                             -->
+                            <transformers>
+                                <transformer
+                                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <manifestEntries>
+                                        <Main-Class>japsa.tools.bio.np.RealtimeSpeciesTypingCmd</Main-Class>
+                                    </manifestEntries>
+                                </transformer>
+                            </transformers>
+                            <finalName>japsa-1.7.8a</finalName>
+                            <!--
+                                                          <excludes>
+                                                              <exclude>japsa/**</exclude>
+                                                          </excludes>
+                                                          <includes>
+                                                              <include>japsa/tools/bio/np/RealtimeSpeciesTypingCmd</include>
+                                                          </includes>
+                            -->
                         </configuration>
                     </execution>
                 </executions>
@@ -142,9 +148,9 @@
                     <testSourceDirectory>src/test/java</testSourceDirectory>
                     <systemPropertyVariables>
                         <log4j.configuration>log4j.properties</log4j.configuration>
-<!--
-                        <log4j.configuration>file:${project.build.testOutputDirectory}/log4j-surefire.properties</log4j.configuration>
--->
+                        <!--
+                                                <log4j.configuration>file:${project.build.testOutputDirectory}/log4j-surefire.properties</log4j.configuration>
+                        -->
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
