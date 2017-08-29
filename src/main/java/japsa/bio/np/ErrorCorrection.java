@@ -168,7 +168,7 @@ public class ErrorCorrection {
         }
 
         //3.0 Read in multiple alignment
-        ArrayList<Sequence> seqList = new ArrayList<Sequence>();
+        List<Sequence> seqList = new ArrayList<Sequence>();
         {
           SequenceReader msaReader = FastaReader.getReader(faoFile);
           Sequence nSeq = null;
