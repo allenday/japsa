@@ -138,10 +138,17 @@ public class RealtimeResistanceGene {
 
     while (samIter.hasNext()) {
       SAMRecord record = samIter.next();
+
+      if (record.getReadUnmappedFlag())
+        continue;
+
       String geneID = record.getReferenceName();
       int refLength = resistFinder.geneMap.get(geneID).length();
       int refStart = record.getAlignmentStart();
       int refEnd = record.getAlignmentEnd();
+
+      if (refStart > 99 || refEnd < refLength - 99)
+        continue;
 
       if (this.twoDOnly && !record.getReadName().contains("twodim"))
         continue;
@@ -162,11 +169,7 @@ public class RealtimeResistanceGene {
         }
       }
 
-      if (record.getReadUnmappedFlag())
-        continue;
       if (!resistFinder.geneMap.containsKey(geneID))
-        continue;
-      if (refStart > 99 || refEnd < refLength - 99)
         continue;
 
       synchronized (this) {
@@ -391,7 +394,7 @@ public class RealtimeResistanceGene {
       sequenceOutputStream.flush();
     }
 
-    private static double fsmAlignment(Sequence consensus, Sequence gene) {
+    public static double fsmAlignment(Sequence consensus, Sequence gene) {
       ProbOneSM tsmF = new ProbOneSM(gene);
       double cost = 100000000;
       for (int c = 0; c < 10; c++) {
