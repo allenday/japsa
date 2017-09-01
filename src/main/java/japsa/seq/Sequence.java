@@ -48,11 +48,16 @@ import java.util.Random;
  *
  * @author Minh Duc Cao (minhduc \dot cao \at gmail \dot com) *
  */
-public class Sequence extends AbstractSequence implements Cloneable, Serializable {
+public class Sequence extends AbstractSequence implements Cloneable {
   /**
    * The array to hold the sequence
    */
   private final byte[] byteSeq;
+
+  // Constructor needed for Serialization reflection
+  public Sequence() {
+    byteSeq = null;
+  }
 
   /**
    * Create an empty sequence with a specified length
